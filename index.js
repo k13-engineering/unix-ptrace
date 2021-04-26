@@ -1,7 +1,7 @@
 const child_process = require("child_process");
 
-const ref = require("ref");
-const Struct = require("ref-struct");
+const ref = require("ref-napi");
+const Struct = require("ref-struct-napi");
 
 const unix = require("./lib/unix");
 const memory = require("./lib/memory");
