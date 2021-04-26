@@ -3,7 +3,7 @@
 const ptrace = require("../index.js");
 
 const spawnAndLog = async (...args) => {
-  const proc = ptrace.spawn(...args);
+  const proc = await ptrace.spawn(...args);
 
   let state = "leave";
   let status = await proc.wait();

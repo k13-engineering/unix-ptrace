@@ -69,7 +69,7 @@ const forkAndExecve = (path, args) => {
   return pid;
 };
 
-const spawn = (path, args) => {
+const spawn = async (path, args) => {
   const pid = forkAndExecve(path, args);
 
   const mem = memory.accessor(pid);
@@ -101,7 +101,10 @@ const spawn = (path, args) => {
   const peek = async (offset, size) => await mem.peek(offset, size);
   const poke = async (offset, data) => await mem.poke(offset, data);
 
-  const detach = () => unix.ptrace(PTRACE_DETACH, pid, null, null);
+  const detach = async () => {
+    await mem.close();
+    unix.ptrace(PTRACE_DETACH, pid, null, null);
+  };
 
   return {
     wait,
