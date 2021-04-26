@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const ptrace = require("../index.js");
+import ptrace from "../index.js";
 
 const spawnAndLog = async (...args) => {
   const proc = await ptrace.spawn(...args);

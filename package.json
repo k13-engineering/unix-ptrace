@@ -1,5 +1,6 @@
 {
   "name": "unix-ptrace",
+  "type": "module",
   "version": "0.1.0",
   "dependencies": {
     "ffi-napi": "^4.0.3",

@@ -1,7 +1,7 @@
-const Struct = require("ref-struct-napi");
+import Struct from "ref-struct-napi";
 
-const unix = require("./lib/unix");
-const memory = require("./lib/memory");
+import unix from "./lib/unix.js";
+import memory from "./lib/memory.js";
 
 const UserRegs = Struct({
   "r15": "int64",
@@ -118,6 +118,6 @@ const spawn = async (path, args) => {
   };
 };
 
-module.exports = {
+export default {
   spawn
 };
