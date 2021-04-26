@@ -181,6 +181,10 @@
         ],
         "no-sync": [
             "error"
+        ],
+        "no-restricted-syntax": [
+            "error",
+            "ThisExpression"
         ]
     },
     "extends": "eslint:recommended"

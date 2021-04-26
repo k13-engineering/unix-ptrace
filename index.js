@@ -44,60 +44,77 @@ const PTRACE_DETACH = 11;
 
 const PTRACE_SYSCALL = 24;
 
-module.exports = new function () {
-  this.spawn = (path, args) => {
-    const pid = unix.fork();
-    if (pid === 0) {
-      try {
-        const _dup2 = (stream, fd) => {
-          const x = unix.dup(stream.fd);
-          unix.dup2(x, fd);
-          unix.close(x);
-        };
-
-        _dup2(process.stdin, 0);
-        _dup2(process.stdout, 1);
-        _dup2(process.stderr, 2);
-
-        unix.ptrace(PTRACE_TRACEME, 0, null, null);
-        unix.execve(path, [path].concat(args), null);
-      } finally {
-        // assure that we will always bail out in child process
-        process.exit(-1);
-      }
-    }
-
-    const mem = memory.accessor(pid);
-
-    return new function () {
-      this.wait = (opts) => unix.waitpid(-1, opts || 0);
-      this.cont = () => unix.ptrace(PTRACE_CONT, pid, null, null);
-      this.syscall = () => unix.ptrace(PTRACE_SYSCALL, pid, null, null);
-      this.singlestep = () => unix.ptrace(PTRACE_SINGLESTEP, pid, null, null);
-
-      this.regs = async (r) => {
-        if (r) {
-          const data = await this.regs();
-          for (const key in r) {
-            if (typeof data[key] === "undefined") {
-              throw new Error(`unkown register '${key}'`);
-            }
-            data[key] = r[key];
-          }
-
-          unix.ptrace(PTRACE_SETREGS, pid, null, data.ref());
-          return data;
-        } else {
-          const res = new UserRegs();
-          unix.ptrace(PTRACE_GETREGS, pid, null, res.ref());
-          return res;
-        }
+const forkAndExecve = (path, args) => {
+  const pid = unix.fork();
+  if (pid === 0) {
+    try {
+      const _dup2 = (stream, fd) => {
+        const x = unix.dup(stream.fd);
+        unix.dup2(x, fd);
+        unix.close(x);
       };
 
-      this.peek = async (offset, size) => await mem.peek(offset, size);
-      this.poke = async (offset, data) => await mem.poke(offset, data);
+      _dup2(process.stdin, 0);
+      _dup2(process.stdout, 1);
+      _dup2(process.stderr, 2);
 
-      this.detach = () => unix.ptrace(PTRACE_DETACH, pid, null, null);
-    };
+      unix.ptrace(PTRACE_TRACEME, 0, null, null);
+      unix.execve(path, [path].concat(args), null);
+    } finally {
+      // assure that we will always bail out in child process
+      process.exit(-1);
+    }
+  }
+
+  return pid;
+};
+
+const spawn = (path, args) => {
+  const pid = forkAndExecve(path, args);
+
+  const mem = memory.accessor(pid);
+
+  const wait = (opts) => unix.waitpid(-1, opts || 0);
+  const cont = () => unix.ptrace(PTRACE_CONT, pid, null, null);
+  const syscall = () => unix.ptrace(PTRACE_SYSCALL, pid, null, null);
+  const singlestep = () => unix.ptrace(PTRACE_SINGLESTEP, pid, null, null);
+
+  const regs = async (r) => {
+    if (r) {
+      const data = await regs();
+      for (const key in r) {
+        if (typeof data[key] === "undefined") {
+          throw Error(`unkown register '${key}'`);
+        }
+        data[key] = r[key];
+      }
+
+      unix.ptrace(PTRACE_SETREGS, pid, null, data.ref());
+      return data;
+    } else {
+      const res = UserRegs();
+      unix.ptrace(PTRACE_GETREGS, pid, null, res.ref());
+      return res;
+    }
   };
+
+  const peek = async (offset, size) => await mem.peek(offset, size);
+  const poke = async (offset, data) => await mem.poke(offset, data);
+
+  const detach = () => unix.ptrace(PTRACE_DETACH, pid, null, null);
+
+  return {
+    wait,
+    cont,
+    syscall,
+    singlestep,
+    regs,
+    peek,
+    poke,
+    detach
+  };
+};
+
+module.exports = {
+  spawn
 };
