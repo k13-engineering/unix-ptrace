@@ -53,7 +53,9 @@ const spawn = async (path, args) => {
 
   const regs = async (r) => {
     if (r) {
-      const data = await regs();
+      const data = Registers();
+      unix.ptrace(PTRACE_GETREGS, pid, null, data.ref());
+
       for (const key in r) {
         if (typeof data[key] === "undefined") {
           throw Error(`unkown register '${key}'`);
@@ -66,7 +68,7 @@ const spawn = async (path, args) => {
     } else {
       const res = Registers();
       unix.ptrace(PTRACE_GETREGS, pid, null, res.ref());
-      return res;
+      return JSON.parse(JSON.stringify(res));
     }
   };
 
