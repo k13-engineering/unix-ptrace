@@ -13,17 +13,19 @@ const PTRACE_SETREGS = 13;
 const PTRACE_DETACH = 17;
 const PTRACE_SYSCALL = 24;
 
+// Every ptrace operation completes without blocking, so only waiting for the
+// tracee to stop is asynchronous.
 type TTracedProcess = {
   pid: number;
   wait: (params?: { options?: number }) => Promise<TWaitStatus>;
   cont: () => void;
   syscall: () => void;
   singlestep: () => void;
-  regs: () => Promise<TRegisters>;
-  setRegs: (params: { registers: TRegisters }) => Promise<TRegisters>;
-  peek: (params: { offset: number; size: number }) => Promise<Uint8Array>;
-  poke: (params: { offset: number; data: Uint8Array }) => Promise<void>;
-  detach: () => Promise<void>;
+  regs: () => TRegisters;
+  setRegs: (params: { registers: TRegisters }) => TRegisters;
+  peek: (params: { offset: number; size: number }) => Uint8Array;
+  poke: (params: { offset: number; data: Uint8Array }) => void;
+  detach: () => void;
 };
 
 const mergeRegisters = ({ current, update }: {
@@ -41,14 +43,14 @@ const mergeRegisters = ({ current, update }: {
   return { ...current, ...update };
 };
 
-const spawn = async ({ path, args = [] }: {
+const spawn = ({ path, args = [] }: {
   path: string;
   args?: readonly string[];
-}): Promise<TTracedProcess> => {
+}): TTracedProcess => {
   const arch = create();
   const registerAccess = registerAccessFor({ type: arch.Registers });
 
-  const pid = await start({ path, args, arch, registerAccess });
+  const pid = start({ path, args, arch, registerAccess });
   const memory = accessorFor({ pid });
 
   // Waiting on this tracee rather than on any child: every other child of the
@@ -58,26 +60,22 @@ const spawn = async ({ path, args = [] }: {
     return await waitpid({ pid, options });
   };
 
-  const readRegisters = (): TRegisters => {
+  const regs = (): TRegisters => {
     const registers: TRegisters = {};
     registerAccess.read({ request: PTRACE_GETREGS, pid, registers });
 
     return registers;
   };
 
-  const regs = async (): Promise<TRegisters> => {
-    return await Promise.resolve(readRegisters());
-  };
-
-  const setRegs = async ({ registers }: { registers: TRegisters }): Promise<TRegisters> => {
-    const merged = mergeRegisters({ current: readRegisters(), update: registers });
+  const setRegs = ({ registers }: { registers: TRegisters }): TRegisters => {
+    const merged = mergeRegisters({ current: regs(), update: registers });
     registerAccess.write({ request: PTRACE_SETREGS, pid, registers: merged });
 
-    return await Promise.resolve(merged);
+    return merged;
   };
 
-  const detach = async (): Promise<void> => {
-    await memory.close();
+  const detach = (): void => {
+    memory.close();
     ptrace({ request: PTRACE_DETACH, pid });
   };
 

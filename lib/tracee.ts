@@ -2,7 +2,7 @@ import fs from "node:fs";
 import process from "node:process";
 
 import {
-  waitpid,
+  waitpidSync,
   ptrace,
   kill,
   allocate,
@@ -140,17 +140,17 @@ const registerFileFor = ({ pid, registerAccess }: { pid: number; registerAccess:
 
 type TRegisterFile = ReturnType<typeof registerFileFor>;
 
-const injectSyscall = async ({ pid, arch, registers, address, number, args }: {
+const injectSyscall = ({ pid, arch, registers, address, number, args }: {
   pid: number;
   arch: TArchitecture;
   registers: TRegisterFile;
   address: bigint;
   number: number;
   args: readonly number[];
-}): Promise<bigint> => {
+}): bigint => {
   registers.write({ registers: arch.prepareSyscall({ registers: registers.read(), address, number, args }) });
   ptrace({ request: PTRACE_SINGLESTEP, pid });
-  await waitpid({ pid, options: 0 });
+  waitpidSync({ pid, options: 0 });
 
   return arch.syscallResult({ registers: registers.read() });
 };
@@ -158,14 +158,14 @@ const injectSyscall = async ({ pid, arch, registers, address, number, args }: {
 // node marks its own stdio FD_CLOEXEC, which would leave the target without
 // descriptors 0, 1 and 2 after the exec. Clearing it from inside the tracee
 // keeps the side effect out of our own process.
-const clearCloexec = async ({ pid, arch, registers, address }: {
+const clearCloexec = ({ pid, arch, registers, address }: {
   pid: number;
   arch: TArchitecture;
   registers: TRegisterFile;
   address: bigint;
-}): Promise<void> => {
+}): void => {
   for (const fd of STDIO_FDS) {
-    const result = await injectSyscall({
+    const result = injectSyscall({
       pid,
       arch,
       registers,
@@ -180,17 +180,17 @@ const clearCloexec = async ({ pid, arch, registers, address }: {
   }
 };
 
-const setUpTracee = async ({ pid, arch, registerAccess, block, address }: {
+const setUpTracee = ({ pid, arch, registerAccess, block, address }: {
   pid: number;
   arch: TArchitecture;
   registerAccess: TRegisterAccess;
   block: TArgumentBlock;
   address: bigint;
-}): Promise<void> => {
+}): void => {
   ptrace({ request: PTRACE_SETOPTIONS, pid, data: BigInt(PTRACE_O_EXITKILL) });
 
   const registers = registerFileFor({ pid, registerAccess });
-  await clearCloexec({ pid, arch, registers, address });
+  clearCloexec({ pid, arch, registers, address });
 
   registers.write({
     registers: arch.prepareSyscall({
@@ -219,28 +219,28 @@ const allocateInheritedMemory = ({ path, args, arch }: {
 
 // An execve() that fails inside the tracee can only report itself as an exit
 // code, so the common failures are worth catching up front.
-const ensureExecutable = async ({ path }: { path: string }): Promise<void> => {
+const ensureExecutable = ({ path }: { path: string }): void => {
   try {
-    await fs.promises.access(path, fs.constants.X_OK);
+    fs.accessSync(path, fs.constants.X_OK);
   } catch (ex) {
     throw Error(`cannot execute '${path}': ${(ex as NodeJS.ErrnoException).code}`, { cause: ex });
   }
 };
 
-const discard = async ({ pid }: { pid: number | undefined }): Promise<void> => {
+const discard = ({ pid }: { pid: number | undefined }): void => {
   if (pid === undefined) {
     return;
   }
 
   kill({ pid, signal: SIGKILL });
-  await waitpid({ pid, options: 0 });
+  waitpidSync({ pid, options: 0 });
 };
 
-const attachAndRedirect = async ({ arch, registerAccess, memory }: {
+const attachAndRedirect = ({ arch, registerAccess, memory }: {
   arch: TArchitecture;
   registerAccess: TRegisterAccess;
   memory: ReturnType<typeof allocateInheritedMemory>;
-}): Promise<number> => {
+}): number => {
   const pid = cloneIntoFunction({
     functionAddress: symbolAddress({ name: "pause" }),
     stackTopAddress: memory.stack.topAddress,
@@ -249,10 +249,10 @@ const attachAndRedirect = async ({ arch, registerAccess, memory }: {
 
   try {
     ptrace({ request: PTRACE_ATTACH, pid });
-    await waitpid({ pid, options: 0 });
-    await setUpTracee({ pid, arch, registerAccess, block: memory.block, address: memory.trampoline.address });
+    waitpidSync({ pid, options: 0 });
+    setUpTracee({ pid, arch, registerAccess, block: memory.block, address: memory.trampoline.address });
   } catch (ex) {
-    await discard({ pid });
+    discard({ pid });
     throw ex;
   }
 
@@ -262,18 +262,18 @@ const attachAndRedirect = async ({ arch, registerAccess, memory }: {
 // Starts `path` stopped at its own execve, without forking the runtime and
 // without a helper process: the child enters libc's pause() directly, and
 // ptrace then redirects it into execve().
-const start = async ({ path, args, arch, registerAccess }: {
+const start = ({ path, args, arch, registerAccess }: {
   path: string;
   args: readonly string[];
   arch: TArchitecture;
   registerAccess: TRegisterAccess;
-}): Promise<number> => {
-  await ensureExecutable({ path });
+}): number => {
+  ensureExecutable({ path });
 
   const memory = allocateInheritedMemory({ path, args, arch });
 
   try {
-    return await attachAndRedirect({ arch, registerAccess, memory });
+    return attachAndRedirect({ arch, registerAccess, memory });
   } finally {
     memory.block.free();
     memory.stack.free();

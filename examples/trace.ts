@@ -3,10 +3,10 @@ import process from "node:process";
 import { spawn } from "../lib/index.ts";
 
 const traceSyscalls = async ({ path, args }: { path: string; args: readonly string[] }): Promise<void> => {
-  const proc = await spawn({ path, args });
+  const proc = spawn({ path, args });
 
-  const step = async ({ entering }: { entering: boolean }): Promise<boolean> => {
-    const regs = await proc.regs();
+  const step = ({ entering }: { entering: boolean }): boolean => {
+    const regs = proc.regs();
 
     if (entering) {
       process.stdout.write(`\rsyscall ${regs.orig_rax}\r`);
@@ -25,7 +25,7 @@ const traceSyscalls = async ({ path, args }: { path: string; args: readonly stri
       return entering;
     }
 
-    return await loop({ entering: await step({ entering }) });
+    return await loop({ entering: step({ entering }) });
   };
 
   const entering = await loop({ entering: false });

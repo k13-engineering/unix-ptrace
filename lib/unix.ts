@@ -148,6 +148,19 @@ const waitFailure = ({ error, result }: { error: unknown; result: number }): Err
   return undefined;
 };
 
+// Setting a tracee up means waiting for stops the tracer itself provoked, so
+// those waits are synchronous; only the caller-facing wait is deferred.
+const waitpidSync = ({ pid, options }: { pid: number; options: number }): TWaitStatus => {
+  const status = [0];
+  const failure = waitFailure({ error: null, result: waitpidRaw(pid, status, options) });
+
+  if (failure !== undefined) {
+    throw failure;
+  }
+
+  return decodeStatus(status[0] ?? 0);
+};
+
 const waitpid = async ({ pid, options }: { pid: number; options: number }): Promise<TWaitStatus> => {
   const code = await new Promise<number>((resolve, reject) => {
     const status = [0];
@@ -299,6 +312,7 @@ const cloneIntoFunction = ({ functionAddress, stackTopAddress, exitSignal }: {
 
 export {
   waitpid,
+  waitpidSync,
   ptrace,
   kill,
   registerAccessFor,
