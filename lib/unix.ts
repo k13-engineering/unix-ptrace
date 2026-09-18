@@ -62,7 +62,9 @@ const PROT_EXEC = 0x4;
 const MAP_PRIVATE = 0x02;
 const MAP_ANONYMOUS = 0x20;
 const MAP_STACK = 0x20000;
-const MAP_FAILED = -1n;
+// koffi.address() reports pointers unsigned, so MAP_FAILED, which is
+// (void *) -1, arrives as the largest 64 bit value rather than as -1n
+const MAP_FAILED = 0xffffffffffffffffn;
 const PAGE_SIZE = 4096;
 
 type TWaitStatus = {
