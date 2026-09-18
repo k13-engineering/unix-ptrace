@@ -8,7 +8,7 @@
   "scripts": {
     "build": "rm -rf dist/ && deno-node-build --root . --out dist/ --entry lib/index.ts",
     "type-check": "tsc --noEmit",
-    "test": "node --test test/",
+    "test": "node --test \"test/**/*.test.ts\"",
     "lint": "eslint .",
     "update-deps": "npm-check-updates -u"
   },
