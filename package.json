@@ -1,38 +1,28 @@
 {
-  "name": "unix-ptrace",
   "type": "module",
   "version": "0.1.0",
   "engines": {
     "node": ">=20.19.0"
+  },
+  "main": "lib/index.ts",
+  "scripts": {
+    "build": "rm -rf dist/ && deno-node-build --root . --out dist/ --entry lib/index.ts",
+    "type-check": "tsc --noEmit",
+    "test": "node --test test/",
+    "lint": "eslint .",
+    "update-deps": "npm-check-updates -u"
   },
   "dependencies": {
     "koffi": "^3.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@stylistic/eslint-plugin": "^5.10.0",
+    "@k13engineering/eslint-rules": "^0.0.6",
+    "@k13engineering/releasetool": "^0.0.5",
+    "@types/node": "^25.6.0",
+    "deno-node": "^0.0.12",
     "eslint": "^10.10.0",
-    "globals": "^17.12.0"
-  },
-  "scripts": {
-    "lint": "eslint ."
-  },
-  "description": "ptrace API for node.js",
-  "main": "index.js",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/k13-engineering/unix-ptrace.git"
-  },
-  "keywords": [
-    "ptrace",
-    "trace",
-    "unix",
-    "linux"
-  ],
-  "author": "Simon Kadisch",
-  "license": "GPL-3.0",
-  "bugs": {
-    "url": "https://github.com/k13-engineering/unix-ptrace/issues"
-  },
-  "homepage": "https://github.com/k13-engineering/unix-ptrace#readme"
+    "npm-check-updates": "^20.0.2",
+    "typescript": "^6.0.3"
+  }
 }

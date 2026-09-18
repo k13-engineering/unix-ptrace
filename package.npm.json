@@ -1,0 +1,28 @@
+{
+  "name": "unix-ptrace",
+  "type": "module",
+  "description": "ptrace API for node.js",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "dist/lib/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/k13-engineering/unix-ptrace.git"
+  },
+  "keywords": [
+    "ptrace",
+    "trace",
+    "unix",
+    "linux"
+  ],
+  "author": "Simon Kadisch",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/k13-engineering/unix-ptrace/issues"
+  },
+  "homepage": "https://github.com/k13-engineering/unix-ptrace#readme"
+}
