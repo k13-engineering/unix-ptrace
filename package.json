@@ -8,7 +8,7 @@
   "scripts": {
     "build": "rm -rf dist/ && deno-node-build --root . --out dist/ --entry lib/index.ts",
     "type-check": "tsc --noEmit",
-    "test": "node --test \"test/**/*.test.ts\"",
+    "test": "c8 mocha",
     "lint": "eslint .",
     "update-deps": "npm-check-updates -u"
   },
@@ -19,9 +19,12 @@
     "@eslint/js": "^10.0.1",
     "@k13engineering/eslint-rules": "^0.0.6",
     "@k13engineering/releasetool": "^0.0.5",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^25.6.0",
+    "c8": "^12.0.0",
     "deno-node": "^0.0.12",
     "eslint": "^10.10.0",
+    "mocha": "^12.0.2",
     "npm-check-updates": "^20.0.2",
     "typescript": "^6.0.3"
   }
