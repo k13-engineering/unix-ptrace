@@ -1,9 +1,9 @@
 import unix from "./lib/unix.js";
 import memory from "./lib/memory.js";
+import tracee from "./lib/tracee.js";
 
 import structureFactory from "./lib/arch/index.js";
 
-const PTRACE_TRACEME = 0;
 const PTRACE_CONT = 7;
 const PTRACE_SINGLESTEP = 9;
 
@@ -14,36 +14,11 @@ const PTRACE_DETACH = 17;
 
 const PTRACE_SYSCALL = 24;
 
-const forkAndExecve = (path, args) => {
-  const pid = unix.fork();
-  if (pid === 0) {
-    try {
-      const _dup2 = (stream, fd) => {
-        const x = unix.dup(stream.fd);
-        unix.dup2(x, fd);
-        unix.close(x);
-      };
-
-      _dup2(process.stdin, 0);
-      _dup2(process.stdout, 1);
-      _dup2(process.stderr, 2);
-
-      unix.ptrace(PTRACE_TRACEME, 0, null, null);
-      unix.execve(path, [path].concat(args), null);
-    } finally {
-      // assure that we will always bail out in child process
-      process.exit(-1);
-    }
-  }
-
-  return pid;
-};
-
 const spawn = async (path, args) => {
-  const { Registers } = structureFactory.create();
-  const registerAccess = unix.ptraceStructAccessor(Registers);
+  const arch = structureFactory.create();
+  const registerAccess = unix.ptraceStructAccessor(arch.Registers);
 
-  const pid = forkAndExecve(path, args);
+  const pid = await tracee.start({ path, args, arch, registerAccess });
 
   const mem = memory.accessor(pid);
 
