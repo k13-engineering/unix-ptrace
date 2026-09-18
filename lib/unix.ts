@@ -28,7 +28,8 @@ type TCloneArgs = [
 ];
 type TCloneCall = (...args: TCloneArgs) => number;
 
-type TRegisterCall = (req: number, pid: number, addr: null, data: TRegisters) => number;
+type TIoVec = { base: Uint8Array; len: number };
+type TRegsetCall = (req: number, pid: number, addr: number, data: TIoVec) => number;
 
 const waitpidRaw = lib.func("waitpid", "int", [
   "int",
@@ -37,6 +38,11 @@ const waitpidRaw = lib.func("waitpid", "int", [
 ]) as KoffiFunc<TWaitpidCall>;
 
 const ptraceRaw = lib.func("long ptrace(int req, int pid, void *addr, void *data)") as KoffiFunc<TPtraceCall>;
+
+koffi.struct("iovec", { base: "void *", len: "size_t" });
+
+const ptraceRegsetRaw = lib.func("long ptrace(int req, int pid, int64_t addr, iovec *data)") as
+  KoffiFunc<TRegsetCall>;
 
 const killRaw = lib.func("int kill(int pid, int sig)") as KoffiFunc<TKillCall>;
 
@@ -118,8 +124,8 @@ type TExecutableAllocation = {
 };
 
 type TRegisterAccess = {
-  read: (params: { request: number; pid: number; registers: TRegisters }) => void;
-  write: (params: { request: number; pid: number; registers: TRegisters }) => void;
+  read: (params: { pid: number }) => TRegisters;
+  write: (params: { pid: number; registers: TRegisters }) => void;
 };
 
 // Decoding mirrors the WIFEXITED, WIFSIGNALED, WIFSTOPPED and WIFCONTINUED
@@ -225,28 +231,33 @@ const kill = ({ pid, signal }: { pid: number; signal: number }): void => {
   }
 };
 
-// ptrace requests that exchange a whole structure (PTRACE_GETREGS and
-// friends) need the layout at declaration time, so they get their own
-// bindings per structure type.
+// PTRACE_GETREGS is an x86 legacy that aarch64 never had, so registers move
+// through GETREGSET instead: the request names a note type and hands the
+// kernel an iovec, which lets one binding serve any layout.
+const PTRACE_GETREGSET = 0x4204;
+const PTRACE_SETREGSET = 0x4205;
+const NT_PRSTATUS = 1;
+
 const registerAccessFor = ({ type }: { type: TypeObject }): TRegisterAccess => {
-  const readRaw = lib.func("ptrace", "long", ["int", "int", "void *", koffi.out(koffi.pointer(type))]) as
-    KoffiFunc<TRegisterCall>;
+  const bytes = new Uint8Array(koffi.sizeof(type));
 
-  const writeRaw = lib.func("ptrace", "long", ["int", "int", "void *", koffi.pointer(type)]) as
-    KoffiFunc<TRegisterCall>;
+  const transfer = ({ request, pid }: { request: number; pid: number }): void => {
+    const result = ptraceRegsetRaw(request, pid, NT_PRSTATUS, { base: bytes, len: bytes.length });
 
-  const check = ({ result }: { result: number }) => {
     if (result < 0) {
       throw Error(`ptrace register access failed: errno ${koffi.errno()}`);
     }
   };
 
-  const read = ({ request, pid, registers }: { request: number; pid: number; registers: TRegisters }) => {
-    check({ result: readRaw(request, pid, null, registers) });
+  const read = ({ pid }: { pid: number }): TRegisters => {
+    transfer({ request: PTRACE_GETREGSET, pid });
+
+    return koffi.decode(bytes, type) as TRegisters;
   };
 
-  const write = ({ request, pid, registers }: { request: number; pid: number; registers: TRegisters }) => {
-    check({ result: writeRaw(request, pid, null, registers) });
+  const write = ({ pid, registers }: { pid: number; registers: TRegisters }): void => {
+    koffi.encode(bytes, type, registers);
+    transfer({ request: PTRACE_SETREGSET, pid });
   };
 
   return { read, write };

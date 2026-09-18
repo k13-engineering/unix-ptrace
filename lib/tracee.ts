@@ -24,8 +24,6 @@ const untilStopped: TWaitOptions = {
 
 const PTRACE_CONT = 7;
 const PTRACE_SINGLESTEP = 9;
-const PTRACE_GETREGS = 12;
-const PTRACE_SETREGS = 13;
 const PTRACE_ATTACH = 16;
 const PTRACE_SETOPTIONS = 0x4200;
 const PTRACE_O_EXITKILL = 0x00100000;
@@ -136,14 +134,11 @@ const buildArgumentBlock = ({ path, args, env }: {
 
 const registerFileFor = ({ pid, registerAccess }: { pid: number; registerAccess: TRegisterAccess }) => {
   const read = (): TRegisters => {
-    const registers: TRegisters = {};
-    registerAccess.read({ request: PTRACE_GETREGS, pid, registers });
-
-    return registers;
+    return registerAccess.read({ pid });
   };
 
   const write = ({ registers }: { registers: TRegisters }): void => {
-    registerAccess.write({ request: PTRACE_SETREGS, pid, registers });
+    registerAccess.write({ pid, registers });
   };
 
   return { read, write };

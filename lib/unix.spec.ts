@@ -22,11 +22,8 @@ import {
 import { architecture } from "./arch/x86_64.ts";
 
 import type { TWaitOptions } from "./unix.ts";
-import type { TRegisters } from "./arch/index.ts";
 
 const PTRACE_ATTACH = 16;
-const PTRACE_GETREGS = 12;
-const PTRACE_SETREGS = 13;
 
 const SIGKILL = 9;
 const SIGSTOP = 19;
@@ -343,8 +340,8 @@ describe("unix", () => {
 
     it("reports a request the kernel rejects", () => {
       assert.throws(() => {
-        ptrace({ request: PTRACE_GETREGS, pid: NO_SUCH_PID });
-      }, /ptrace request 12 failed/);
+        ptrace({ request: PTRACE_ATTACH, pid: NO_SUCH_PID });
+      }, /ptrace request 16 failed/);
     });
   });
 
@@ -362,8 +359,7 @@ describe("unix", () => {
       const access = registerAccessFor({ type: architecture.Registers });
       const pid = attachedChild();
 
-      const registers: TRegisters = {};
-      access.read({ request: PTRACE_GETREGS, pid, registers });
+      const registers = access.read({ pid });
 
       assert.equal(Object.keys(registers).length, 27);
       assert.notEqual(Number(registers.rip), 0);
@@ -375,14 +371,10 @@ describe("unix", () => {
       const access = registerAccessFor({ type: architecture.Registers });
       const pid = attachedChild();
 
-      const registers: TRegisters = {};
-      access.read({ request: PTRACE_GETREGS, pid, registers });
-      access.write({ request: PTRACE_SETREGS, pid, registers: { ...registers, r15: 0xfeed } });
+      const registers = access.read({ pid });
+      access.write({ pid, registers: { ...registers, r15: 0xfeed } });
 
-      const readBack: TRegisters = {};
-      access.read({ request: PTRACE_GETREGS, pid, registers: readBack });
-
-      assert.equal(Number(readBack.r15), 0xfeed);
+      assert.equal(Number(access.read({ pid }).r15), 0xfeed);
 
       reap({ pid });
     });
@@ -391,7 +383,7 @@ describe("unix", () => {
       const access = registerAccessFor({ type: architecture.Registers });
 
       assert.throws(() => {
-        access.read({ request: PTRACE_GETREGS, pid: NO_SUCH_PID, registers: {} });
+        access.read({ pid: NO_SUCH_PID });
       }, /ptrace register access failed/);
     });
 
@@ -399,7 +391,7 @@ describe("unix", () => {
       const access = registerAccessFor({ type: architecture.Registers });
 
       assert.throws(() => {
-        access.write({ request: PTRACE_SETREGS, pid: NO_SUCH_PID, registers: {} });
+        access.write({ pid: NO_SUCH_PID, registers: {} });
       }, /ptrace register access failed/);
     });
   });

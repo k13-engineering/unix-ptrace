@@ -12,7 +12,7 @@ import { registerAccessFor, waitpidSync, kill } from "./unix.ts";
 
 import type { TWaitOptions } from "./unix.ts";
 import type { TEnvironment } from "./tracee.ts";
-import type { TArchitecture, TRegisters } from "./arch/index.ts";
+import type { TArchitecture } from "./arch/index.ts";
 
 const blocking: TWaitOptions = {
   block: true,
@@ -20,7 +20,6 @@ const blocking: TWaitOptions = {
   reportContinued: false
 };
 
-const PTRACE_GETREGS = 12;
 const PTRACE_KILL_SIGNAL = 9;
 const SYS_EXECVE = 59;
 const ENOEXEC = 8;
@@ -97,8 +96,7 @@ describe("tracee", () => {
     it("stops the target at its own execve, before any of its code runs", () => {
       const pid = stoppedTracee({ path: "/bin/sleep", args: ["5"] });
 
-      const registers: TRegisters = {};
-      registerAccess.read({ request: PTRACE_GETREGS, pid, registers });
+      const registers = registerAccess.read({ pid });
 
       assert.equal(Number(registers.orig_rax), SYS_EXECVE);
 

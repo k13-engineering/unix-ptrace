@@ -17,8 +17,6 @@ const defaultWaitOptions: TWaitOptions = {
 
 const PTRACE_CONT = 7;
 const PTRACE_SINGLESTEP = 9;
-const PTRACE_GETREGS = 12;
-const PTRACE_SETREGS = 13;
 const PTRACE_DETACH = 17;
 const PTRACE_SYSCALL = 24;
 
@@ -73,15 +71,12 @@ const spawn = ({ path, args, env }: {
   };
 
   const regs = (): TRegisters => {
-    const registers: TRegisters = {};
-    registerAccess.read({ request: PTRACE_GETREGS, pid, registers });
-
-    return registers;
+    return registerAccess.read({ pid });
   };
 
   const setRegs = ({ registers }: { registers: TRegisters }): TRegisters => {
     const merged = mergeRegisters({ current: regs(), update: registers });
-    registerAccess.write({ request: PTRACE_SETREGS, pid, registers: merged });
+    registerAccess.write({ pid, registers: merged });
 
     return merged;
   };
