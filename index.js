@@ -41,6 +41,7 @@ const forkAndExecve = (path, args) => {
 
 const spawn = async (path, args) => {
   const { Registers } = structureFactory.create();
+  const registerAccess = unix.ptraceStructAccessor(Registers);
 
   const pid = forkAndExecve(path, args);
 
@@ -52,10 +53,10 @@ const spawn = async (path, args) => {
   const singlestep = () => unix.ptrace(PTRACE_SINGLESTEP, pid, null, null);
 
   const regs = async (r) => {
-    if (r) {
-      const data = Registers();
-      unix.ptrace(PTRACE_GETREGS, pid, null, data.ref());
+    const data = {};
+    registerAccess.read(PTRACE_GETREGS, pid, data);
 
+    if (r) {
       for (const key in r) {
         if (typeof data[key] === "undefined") {
           throw Error(`unkown register '${key}'`);
@@ -63,13 +64,10 @@ const spawn = async (path, args) => {
         data[key] = r[key];
       }
 
-      unix.ptrace(PTRACE_SETREGS, pid, null, data.ref());
-      return data;
-    } else {
-      const res = Registers();
-      unix.ptrace(PTRACE_GETREGS, pid, null, res.ref());
-      return JSON.parse(JSON.stringify(res));
+      registerAccess.write(PTRACE_SETREGS, pid, data);
     }
+
+    return data;
   };
 
   const peek = async (offset, size) => await mem.peek(offset, size);

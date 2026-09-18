@@ -11,7 +11,7 @@ For examples, have a look at the examples folder.
 Currently, only Linux on x86_64 is supported. The CPU register layout is architecture specific and therefore has to be implemented for the other architectures as well.
 
 ## Requirements
-The source code is written using ES6 features and experimental async/await language features. Therefore a node.js version of >= 7.6 is required. Some lower versions also support async/await keywords with the --harmony-async-await flag.
+node.js >= 20.19.0. The FFI bindings are provided by [koffi](https://koffi.dev), which ships prebuilt binaries, so no compiler or node-gyp toolchain is needed to install this package.
 
 ## Promise vs Callback
 For now the API is callback based. There are plans to support callback driven operation in parallel.
