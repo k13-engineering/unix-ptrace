@@ -12,8 +12,16 @@ import {
   cloneIntoFunction
 } from "./unix.ts";
 
-import type { TRegisterAccess } from "./unix.ts";
+import type { TRegisterAccess, TWaitOptions } from "./unix.ts";
 import type { TArchitecture, TRegisters } from "./arch/index.ts";
+
+// Every stop waited for here is one the tracer itself provoked, so there is
+// nothing to gain from the wider reports.
+const untilStopped: TWaitOptions = {
+  block: true,
+  reportUntracedStops: false,
+  reportContinued: false
+};
 
 const PTRACE_CONT = 7;
 const PTRACE_SINGLESTEP = 9;
@@ -150,7 +158,7 @@ const injectSyscall = ({ pid, arch, registers, address, number, args }: {
 }): bigint => {
   registers.write({ registers: arch.prepareSyscall({ registers: registers.read(), address, number, args }) });
   ptrace({ request: PTRACE_SINGLESTEP, pid });
-  waitpidSync({ pid, options: 0 });
+  waitpidSync({ pid, options: untilStopped });
 
   return arch.syscallResult({ registers: registers.read() });
 };
@@ -229,7 +237,7 @@ const ensureExecutable = ({ path }: { path: string }): void => {
 
 const discard = ({ pid }: { pid: number }): void => {
   kill({ pid, signal: SIGKILL });
-  waitpidSync({ pid, options: 0 });
+  waitpidSync({ pid, options: untilStopped });
 };
 
 const attachAndRedirect = ({ arch, registerAccess, memory }: {
@@ -245,7 +253,7 @@ const attachAndRedirect = ({ arch, registerAccess, memory }: {
 
   try {
     ptrace({ request: PTRACE_ATTACH, pid });
-    waitpidSync({ pid, options: 0 });
+    waitpidSync({ pid, options: untilStopped });
     setUpTracee({ pid, arch, registerAccess, block: memory.block, address: memory.trampoline.address });
   } catch (ex) {
     discard({ pid });

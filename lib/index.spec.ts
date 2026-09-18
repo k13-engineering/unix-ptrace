@@ -6,11 +6,23 @@ import { describe, it, afterEach } from "mocha";
 import { spawn } from "./index.ts";
 import { waitpidSync, kill } from "./unix.ts";
 
-import type { TTracedProcess, TWaitStatus } from "./index.ts";
+import type { TTracedProcess, TWaitStatus, TWaitOptions } from "./index.ts";
 
 const SYS_EXECVE = 59;
 const SIGKILL = 9;
-const WNOHANG = 1;
+
+const blocking: TWaitOptions = {
+  block: true,
+  reportUntracedStops: false,
+  reportContinued: false
+};
+
+const nonBlocking: TWaitOptions = {
+  block: false,
+  reportUntracedStops: false,
+  reportContinued: false
+};
+
 const encoder = new TextEncoder();
 
 const running = new Set<TTracedProcess>();
@@ -20,7 +32,7 @@ const running = new Set<TTracedProcess>();
 const forget = ({ pid }: { pid: number }): boolean => {
   try {
     kill({ pid, signal: SIGKILL });
-    waitpidSync({ pid, options: 0 });
+    waitpidSync({ pid, options: blocking });
     return true;
   } catch {
     return false;
@@ -101,7 +113,7 @@ describe("spawn", () => {
       const proc = await stopped({ path: "/bin/sleep", args: ["5"] });
       proc.cont();
 
-      assert.deepEqual(await proc.wait({ options: WNOHANG }), { type: "unchanged" });
+      assert.deepEqual(await proc.wait({ options: nonBlocking }), { type: "unchanged" });
 
     });
 

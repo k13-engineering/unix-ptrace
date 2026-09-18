@@ -3,8 +3,16 @@ import { accessorFor } from "./memory.ts";
 import { start } from "./tracee.ts";
 import { create } from "./arch/index.ts";
 
-import type { TWaitStatus } from "./unix.ts";
+import type { TWaitStatus, TWaitOptions } from "./unix.ts";
 import type { TRegisters } from "./arch/index.ts";
+
+// A tracer is told about every ptrace stop whether it asks or not, so the
+// wider reports only matter to a caller that wants them.
+const defaultWaitOptions: TWaitOptions = {
+  block: true,
+  reportUntracedStops: false,
+  reportContinued: false
+};
 
 const PTRACE_CONT = 7;
 const PTRACE_SINGLESTEP = 9;
@@ -17,7 +25,7 @@ const PTRACE_SYSCALL = 24;
 // tracee to stop is asynchronous.
 type TTracedProcess = {
   pid: number;
-  wait: (params?: { options?: number }) => Promise<TWaitStatus>;
+  wait: (params?: { options?: TWaitOptions }) => Promise<TWaitStatus>;
   cont: () => void;
   syscall: () => void;
   singlestep: () => void;
@@ -56,7 +64,7 @@ const spawn = ({ path, args = [] }: {
   // Waiting on this tracee rather than on any child: every other child of the
   // host process, including ones it spawned itself, would otherwise have its
   // status consumed here.
-  const wait = async ({ options = 0 }: { options?: number } = {}) => {
+  const wait = async ({ options = defaultWaitOptions }: { options?: TWaitOptions } = {}) => {
     return await waitpid({ pid, options });
   };
 
@@ -106,5 +114,6 @@ export {
 export type {
   TTracedProcess,
   TWaitStatus,
+  TWaitOptions,
   TRegisters
 };

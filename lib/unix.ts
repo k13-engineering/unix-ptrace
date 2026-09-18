@@ -91,6 +91,16 @@ type TReportedStatus = {
   changed: boolean;
 };
 
+// The three things a caller can ask of a wait, spelled out rather than
+// or-ed together into a flag word. Each one widens what counts as a change:
+// blocking waits for one, and the other two admit kinds of change that a
+// bare wait would pass over.
+type TWaitOptions = {
+  block: boolean;
+  reportUntracedStops: boolean;
+  reportContinued: boolean;
+};
+
 type TAllocation = {
   address: bigint;
   bytes: Uint8Array;
@@ -153,11 +163,19 @@ const waitFailure = ({ error, result }: { error: unknown; result: number }): Err
   return undefined;
 };
 
+const WNOHANG = 0x1;
+const WUNTRACED = 0x2;
+const WCONTINUED = 0x8;
+
+const encodeOptions = ({ block, reportUntracedStops, reportContinued }: TWaitOptions): number => {
+  return (block ? 0 : WNOHANG) | (reportUntracedStops ? WUNTRACED : 0) | (reportContinued ? WCONTINUED : 0);
+};
+
 // Setting a tracee up means waiting for stops the tracer itself provoked, so
 // those waits are synchronous; only the caller-facing wait is deferred.
-const waitpidSync = ({ pid, options }: { pid: number; options: number }): TWaitStatus => {
+const waitpidSync = ({ pid, options }: { pid: number; options: TWaitOptions }): TWaitStatus => {
   const status = [0];
-  const result = waitpidRaw(pid, status, options);
+  const result = waitpidRaw(pid, status, encodeOptions(options));
   const failure = waitFailure({ error: null, result });
 
   if (failure !== undefined) {
@@ -167,11 +185,11 @@ const waitpidSync = ({ pid, options }: { pid: number; options: number }): TWaitS
   return decodeStatus({ code: status[0] ?? 0, changed: result !== 0 });
 };
 
-const waitpid = async ({ pid, options }: { pid: number; options: number }): Promise<TWaitStatus> => {
+const waitpid = async ({ pid, options }: { pid: number; options: TWaitOptions }): Promise<TWaitStatus> => {
   const reported = await new Promise<TReportedStatus>((resolve, reject) => {
     const status = [0];
 
-    waitpidRaw.async(pid, status, options, (...outcome: [unknown, number]) => {
+    waitpidRaw.async(pid, status, encodeOptions(options), (...outcome: [unknown, number]) => {
       const failure = waitFailure({ error: outcome[0], result: outcome[1] });
 
       if (failure !== undefined) {
@@ -331,6 +349,7 @@ export {
 
 export type {
   TWaitStatus,
+  TWaitOptions,
   TAllocation,
   TRegisterAccess
 };

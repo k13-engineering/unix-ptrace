@@ -10,7 +10,14 @@ import { start } from "./tracee.ts";
 import { create } from "./arch/index.ts";
 import { registerAccessFor, waitpidSync, kill } from "./unix.ts";
 
+import type { TWaitOptions } from "./unix.ts";
 import type { TArchitecture, TRegisters } from "./arch/index.ts";
+
+const blocking: TWaitOptions = {
+  block: true,
+  reportUntracedStops: false,
+  reportContinued: false
+};
 
 const PTRACE_GETREGS = 12;
 const PTRACE_KILL_SIGNAL = 9;
@@ -24,7 +31,7 @@ const running = new Set<number>();
 const forget = ({ pid }: { pid: number }): boolean => {
   try {
     kill({ pid, signal: PTRACE_KILL_SIGNAL });
-    waitpidSync({ pid, options: 0 });
+    waitpidSync({ pid, options: blocking });
     return true;
   } catch {
     return false;
@@ -64,7 +71,7 @@ const ourChildren = (): readonly string[] => {
 
 const stoppedTracee = ({ path, args = [] }: { path: string; args?: readonly string[] }): number => {
   const pid = startTracee({ path, args });
-  waitpidSync({ pid, options: 0 });
+  waitpidSync({ pid, options: blocking });
 
   return pid;
 };
@@ -141,7 +148,7 @@ describe("tracee", () => {
 
     it("exits the tracee with the errno when the exec itself fails", () => {
       const path = writeTempFile({ name: "bad-format", contents: "\x7fELF nonsense\n", mode: 0o755 });
-      const status = waitpidSync({ pid: startTracee({ path }), options: 0 });
+      const status = waitpidSync({ pid: startTracee({ path }), options: blocking });
 
       assert.deepEqual(status, { type: "exited", code: ENOEXEC });
     });
