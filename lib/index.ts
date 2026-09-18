@@ -4,6 +4,7 @@ import { start } from "./tracee.ts";
 import { create } from "./arch/index.ts";
 
 import type { TWaitStatus, TWaitOptions } from "./unix.ts";
+import type { TEnvironment } from "./tracee.ts";
 import type { TRegisters } from "./arch/index.ts";
 
 // A tracer is told about every ptrace stop whether it asks or not, so the
@@ -51,14 +52,17 @@ const mergeRegisters = ({ current, update }: {
   return { ...current, ...update };
 };
 
-const spawn = ({ path, args = [] }: {
+// Nothing is inherited implicitly: the target gets the arguments and the
+// environment the caller names, and no others.
+const spawn = ({ path, args, env }: {
   path: string;
-  args?: readonly string[];
+  args: readonly string[];
+  env: TEnvironment;
 }): TTracedProcess => {
   const arch = create();
   const registerAccess = registerAccessFor({ type: arch.Registers });
 
-  const pid = start({ path, args, arch, registerAccess });
+  const pid = start({ path, args, env, arch, registerAccess });
   const memory = accessorFor({ pid });
 
   // Waiting on this tracee rather than on any child: every other child of the
@@ -115,5 +119,6 @@ export type {
   TTracedProcess,
   TWaitStatus,
   TWaitOptions,
+  TEnvironment,
   TRegisters
 };

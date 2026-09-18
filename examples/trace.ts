@@ -2,8 +2,16 @@ import process from "node:process";
 
 import { spawn } from "../lib/index.ts";
 
+// spawn() inherits nothing on its own, and node's own environment carries
+// undefined values that execve() has no way to express.
+const inheritedEnvironment = (): Record<string, string> => {
+  return Object.entries(process.env).reduce<Record<string, string>>((env, [key, value]) => {
+    return value === undefined ? env : { ...env, [key]: value };
+  }, {});
+};
+
 const traceSyscalls = async ({ path, args }: { path: string; args: readonly string[] }): Promise<void> => {
-  const proc = spawn({ path, args });
+  const proc = spawn({ path, args, env: inheritedEnvironment() });
 
   const step = ({ entering }: { entering: boolean }): boolean => {
     const regs = proc.regs();

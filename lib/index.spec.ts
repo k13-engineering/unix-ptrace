@@ -47,7 +47,7 @@ afterEach(() => {
 });
 
 const stopped = ({ path, args = [] }: { path: string; args?: readonly string[] }): Promise<TTracedProcess> => {
-  const proc = spawn({ path, args });
+  const proc = spawn({ path, args, env: {} });
   running.add(proc);
 
   return proc.wait().then(() => {
@@ -100,7 +100,7 @@ describe("spawn", () => {
   describe("wait", () => {
 
     it("reports the execve stop first, before the target has run", async () => {
-      const proc = spawn({ path: "/bin/sleep", args: ["5"] });
+      const proc = spawn({ path: "/bin/sleep", args: ["5"], env: {} });
       running.add(proc);
       const status = await proc.wait();
 
@@ -124,7 +124,7 @@ describe("spawn", () => {
         setTimeout(resolve, 300);
       });
 
-      const proc = spawn({ path: "/bin/sleep", args: ["5"] });
+      const proc = spawn({ path: "/bin/sleep", args: ["5"], env: {} });
       running.add(proc);
 
       assert.equal((await proc.wait()).type, "stopped");

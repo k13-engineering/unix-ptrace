@@ -11,6 +11,7 @@ import { create } from "./arch/index.ts";
 import { registerAccessFor, waitpidSync, kill } from "./unix.ts";
 
 import type { TWaitOptions } from "./unix.ts";
+import type { TEnvironment } from "./tracee.ts";
 import type { TArchitecture, TRegisters } from "./arch/index.ts";
 
 const blocking: TWaitOptions = {
@@ -48,12 +49,13 @@ afterEach(() => {
 const arch = create();
 const registerAccess = registerAccessFor({ type: arch.Registers });
 
-const startTracee = ({ path, args = [], using = arch }: {
+const startTracee = ({ path, args = [], env = {}, using = arch }: {
   path: string;
   args?: readonly string[];
+  env?: TEnvironment;
   using?: TArchitecture;
 }): number => {
-  const pid = start({ path, args, arch: using, registerAccess });
+  const pid = start({ path, args, env, arch: using, registerAccess });
   running.add(pid);
 
   return pid;
@@ -69,8 +71,12 @@ const ourChildren = (): readonly string[] => {
   });
 };
 
-const stoppedTracee = ({ path, args = [] }: { path: string; args?: readonly string[] }): number => {
-  const pid = startTracee({ path, args });
+const stoppedTracee = ({ path, args = [], env = {} }: {
+  path: string;
+  args?: readonly string[];
+  env?: TEnvironment;
+}): number => {
+  const pid = startTracee({ path, args, env });
   waitpidSync({ pid, options: blocking });
 
   return pid;
@@ -114,11 +120,27 @@ describe("tracee", () => {
 
     });
 
-    it("hands the target our environment", () => {
+    it("hands the target the environment it was given", () => {
+      const pid = stoppedTracee({ path: "/bin/sleep", args: ["5"], env: { GREETING: "hello", LANG: "C" } });
+      const environ = fs.readFileSync(`/proc/${pid}/environ`, "utf8").split("\0").slice(0, 2);
+
+      assert.deepEqual(environ, ["GREETING=hello", "LANG=C"]);
+
+    });
+
+    it("gives the target an empty environment when it was given none", () => {
       const pid = stoppedTracee({ path: "/bin/sleep", args: ["5"] });
+      const environ = fs.readFileSync(`/proc/${pid}/environ`, "utf8");
+
+      assert.equal(environ, "");
+
+    });
+
+    it("does not leak our own environment to the target", () => {
+      const pid = stoppedTracee({ path: "/bin/sleep", args: ["5"], env: { LANG: "C" } });
       const environ = fs.readFileSync(`/proc/${pid}/environ`, "utf8").split("\0");
 
-      assert.equal(environ.includes(`PATH=${process.env.PATH}`), true);
+      assert.equal(environ.includes(`PATH=${process.env.PATH}`), false);
 
     });
 

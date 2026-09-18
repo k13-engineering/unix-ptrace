@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import process from "node:process";
 
 import {
   waitpidSync,
@@ -50,6 +49,10 @@ type TArgumentBlock = {
   free: () => void;
 };
 
+// execve() takes the environment as a vector of KEY=value strings, but that
+// is an encoding, not an interface: callers name the variables they want.
+type TEnvironment = Readonly<Record<string, string>>;
+
 type TStringLayout = {
   offsets: readonly number[];
   encoded: readonly Uint8Array[];
@@ -98,7 +101,7 @@ const writeVector = ({ view, offset, addresses }: {
 const buildArgumentBlock = ({ path, args, env }: {
   path: string;
   args: readonly string[];
-  env: Record<string, string | undefined>;
+  env: TEnvironment;
 }): TArgumentBlock => {
   const argv = [path, ...args];
   const envp = Object.entries(env).map(([key, value]) => {
@@ -213,13 +216,14 @@ const setUpTracee = ({ pid, arch, registerAccess, block, address }: {
   ptrace({ request: PTRACE_CONT, pid });
 };
 
-const allocateInheritedMemory = ({ path, args, arch }: {
+const allocateInheritedMemory = ({ path, args, env, arch }: {
   path: string;
   args: readonly string[];
+  env: TEnvironment;
   arch: TArchitecture;
 }) => {
   return {
-    block: buildArgumentBlock({ path, args, env: process.env }),
+    block: buildArgumentBlock({ path, args, env }),
     stack: allocateStack({ length: CHILD_STACK_SIZE }),
     trampoline: allocateExecutable({ code: arch.syscallTrampoline })
   };
@@ -266,15 +270,16 @@ const attachAndRedirect = ({ arch, registerAccess, memory }: {
 // Starts `path` stopped at its own execve, without forking the runtime and
 // without a helper process: the child enters libc's pause() directly, and
 // ptrace then redirects it into execve().
-const start = ({ path, args, arch, registerAccess }: {
+const start = ({ path, args, env, arch, registerAccess }: {
   path: string;
   args: readonly string[];
+  env: TEnvironment;
   arch: TArchitecture;
   registerAccess: TRegisterAccess;
 }): number => {
   ensureExecutable({ path });
 
-  const memory = allocateInheritedMemory({ path, args, arch });
+  const memory = allocateInheritedMemory({ path, args, env, arch });
 
   try {
     return attachAndRedirect({ arch, registerAccess, memory });
@@ -290,5 +295,6 @@ export {
 };
 
 export type {
-  TArgumentBlock
+  TArgumentBlock,
+  TEnvironment
 };
