@@ -13,7 +13,7 @@ import {
 } from "./unix.ts";
 
 import type { TRegisterAccess } from "./unix.ts";
-import type { TArchitecture, TRegisters } from "./arch/types.ts";
+import type { TArchitecture, TRegisters } from "./arch/index.ts";
 
 const PTRACE_CONT = 7;
 const PTRACE_SINGLESTEP = 9;
@@ -227,11 +227,7 @@ const ensureExecutable = ({ path }: { path: string }): void => {
   }
 };
 
-const discard = ({ pid }: { pid: number | undefined }): void => {
-  if (pid === undefined) {
-    return;
-  }
-
+const discard = ({ pid }: { pid: number }): void => {
   kill({ pid, signal: SIGKILL });
   waitpidSync({ pid, options: 0 });
 };

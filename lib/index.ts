@@ -4,7 +4,7 @@ import { start } from "./tracee.ts";
 import { create } from "./arch/index.ts";
 
 import type { TWaitStatus } from "./unix.ts";
-import type { TRegisters } from "./arch/types.ts";
+import type { TRegisters } from "./arch/index.ts";
 
 const PTRACE_CONT = 7;
 const PTRACE_SINGLESTEP = 9;

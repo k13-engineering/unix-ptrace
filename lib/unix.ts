@@ -1,7 +1,7 @@
 import koffi from "koffi";
 
 import type { KoffiFunc, TypeObject } from "koffi";
-import type { TRegisters } from "./arch/types.ts";
+import type { TRegisters } from "./arch/index.ts";
 
 const lib = koffi.load(null);
 

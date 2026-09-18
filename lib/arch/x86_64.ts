@@ -1,6 +1,6 @@
 import koffi from "koffi";
 
-import type { TRegisters, TRegisterValue, TArchitecture } from "./types.ts";
+import type { TRegisters, TRegisterValue, TArchitecture } from "./index.ts";
 
 const Registers = koffi.struct("user_regs_struct_x86_64", {
   r15: "int64",
