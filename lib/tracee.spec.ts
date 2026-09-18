@@ -10,6 +10,8 @@ import { start } from "./tracee.ts";
 import { create } from "./arch/index.ts";
 import { registerAccessFor, waitpidSync, kill } from "./unix.ts";
 
+import { hostRegisters } from "./arch/host.fixture.ts";
+
 import type { TWaitOptions } from "./unix.ts";
 import type { TEnvironment } from "./tracee.ts";
 import type { TArchitecture } from "./arch/index.ts";
@@ -21,7 +23,7 @@ const blocking: TWaitOptions = {
 };
 
 const PTRACE_KILL_SIGNAL = 9;
-const SYS_EXECVE = 59;
+const host = hostRegisters();
 const ENOEXEC = 8;
 
 const running = new Set<number>();
@@ -98,7 +100,7 @@ describe("tracee", () => {
 
       const registers = registerAccess.read({ pid });
 
-      assert.equal(Number(registers.orig_rax), SYS_EXECVE);
+      assert.deepEqual(host.freshExecMarks({ registers }), host.freshExecExpected);
 
     });
 

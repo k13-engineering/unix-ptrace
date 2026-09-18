@@ -1,7 +1,7 @@
 {
   "all": true,
   "src": ["lib"],
-  "exclude": ["**/*.spec.ts"],
+  "exclude": ["**/*.spec.ts", "**/*.fixture.ts"],
   "reporter": ["text", "lcov", "html"],
   "report-dir": "coverage"
 }

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "mocha";
 import koffi from "koffi";
 
-import { architecture } from "./x86_64.ts";
+import { x86_64 } from "./x86_64.ts";
 
 // struct user_regs_struct as the x86_64 kernel defines it: the order is part
 // of the PTRACE_GETREGS ABI, not a detail of this package
@@ -21,18 +21,18 @@ describe("x86_64", () => {
   describe("Registers", () => {
 
     it("lays the registers out in the order the kernel expects", () => {
-      const members = architecture.Registers.members ?? {};
+      const members = x86_64.Registers.members ?? {};
 
       assert.deepEqual(Object.keys(members), kernelRegisterOrder);
     });
 
     it("is one 64 bit word per register, with no padding", () => {
-      const members = architecture.Registers.members ?? {};
+      const members = x86_64.Registers.members ?? {};
       const offsets = kernelRegisterOrder.map((name) => {
         return members[name]?.offset;
       });
 
-      assert.equal(koffi.sizeof(architecture.Registers), kernelRegisterOrder.length * 8);
+      assert.equal(koffi.sizeof(x86_64.Registers), kernelRegisterOrder.length * 8);
       assert.deepEqual(offsets, kernelRegisterOrder.map((_name, index) => {
         return index * 8;
       }));
@@ -42,7 +42,7 @@ describe("x86_64", () => {
   describe("syscallTrampoline", () => {
 
     it("starts with a syscall instruction", () => {
-      assert.deepEqual(architecture.syscallTrampoline.slice(0, 2), new Uint8Array([0x0f, 0x05]));
+      assert.deepEqual(x86_64.syscallTrampoline.slice(0, 2), new Uint8Array([0x0f, 0x05]));
     });
 
     it("exits the tracee with the errno when the syscall returns", () => {
@@ -54,21 +54,21 @@ describe("x86_64", () => {
         0x0f, 0x05
       ]);
 
-      assert.deepEqual(architecture.syscallTrampoline.slice(2), fallthrough);
+      assert.deepEqual(x86_64.syscallTrampoline.slice(2), fallthrough);
     });
   });
 
   describe("syscallNumbers", () => {
 
     it("uses the x86_64 syscall numbers", () => {
-      assert.deepEqual(architecture.syscallNumbers, { execve: 59, fcntl: 72 });
+      assert.deepEqual(x86_64.syscallNumbers, { execve: 59, fcntl: 72 });
     });
   });
 
   describe("prepareSyscall", () => {
 
     const prepare = ({ args }: { args: readonly (number | bigint)[] }) => {
-      return architecture.prepareSyscall({ registers: { ...baseRegisters }, address: 0x1000n, number: 59, args });
+      return x86_64.prepareSyscall({ registers: { ...baseRegisters }, address: 0x1000n, number: 59, args });
     };
 
     it("puts the syscall number in rax and jumps to the given address", () => {
@@ -102,7 +102,7 @@ describe("x86_64", () => {
 
     it("does not modify the registers it was handed", () => {
       const registers = { ...baseRegisters };
-      architecture.prepareSyscall({ registers, address: 0x1000n, number: 59, args: [11] });
+      x86_64.prepareSyscall({ registers, address: 0x1000n, number: 59, args: [11] });
 
       assert.deepEqual(registers, baseRegisters);
     });
@@ -111,19 +111,19 @@ describe("x86_64", () => {
   describe("syscallResult", () => {
 
     it("reads the result out of rax", () => {
-      assert.equal(architecture.syscallResult({ registers: { rax: 42n } }), 42n);
+      assert.equal(x86_64.syscallResult({ registers: { rax: 42n } }), 42n);
     });
 
     it("keeps a negated errno negative", () => {
-      assert.equal(architecture.syscallResult({ registers: { rax: -2n } }), -2n);
+      assert.equal(x86_64.syscallResult({ registers: { rax: -2n } }), -2n);
     });
 
     it("reads a result that arrived as a number", () => {
-      assert.equal(architecture.syscallResult({ registers: { rax: 7 } }), 7n);
+      assert.equal(x86_64.syscallResult({ registers: { rax: 7 } }), 7n);
     });
 
     it("reports zero when the register set carries no rax", () => {
-      assert.equal(architecture.syscallResult({ registers: {} }), 0n);
+      assert.equal(x86_64.syscallResult({ registers: {} }), 0n);
     });
   });
 });

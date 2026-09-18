@@ -1,6 +1,7 @@
 import process from "node:process";
 
-import { architecture } from "./x86_64.ts";
+import { x86_64 } from "./x86_64.ts";
+import { arm64 } from "./arm64.ts";
 
 import type { TypeObject } from "koffi";
 
@@ -25,8 +26,10 @@ type TArchitecture = {
   syscallResult: (params: { registers: TRegisters }) => bigint;
 };
 
+// keyed by process.arch, which is node's name for the host, not the kernel's
 const architectures: Record<string, TArchitecture | undefined> = {
-  x64: architecture
+  x64: x86_64,
+  arm64
 };
 
 const create = (): TArchitecture => {

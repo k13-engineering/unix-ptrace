@@ -80,7 +80,7 @@ const syscallResult = ({ registers }: { registers: TRegisters }): bigint => {
   return BigInt(registers.rax ?? 0);
 };
 
-const architecture: TArchitecture = {
+const x86_64: TArchitecture = {
   Registers,
   syscallNumbers,
   syscallTrampoline,
@@ -89,5 +89,5 @@ const architecture: TArchitecture = {
 };
 
 export {
-  architecture
+  x86_64
 };

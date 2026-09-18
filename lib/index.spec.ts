@@ -6,9 +6,11 @@ import { describe, it, afterEach } from "mocha";
 import { spawn } from "./index.ts";
 import { waitpidSync, kill } from "./unix.ts";
 
+import { hostRegisters } from "./arch/host.fixture.ts";
+
 import type { TTracedProcess, TWaitStatus, TWaitOptions } from "./index.ts";
 
-const SYS_EXECVE = 59;
+const host = hostRegisters();
 const SIGKILL = 9;
 
 const blocking: TWaitOptions = {
@@ -105,7 +107,7 @@ describe("spawn", () => {
       const status = await proc.wait();
 
       assert.equal(status.type, "stopped");
-      assert.equal(Number(proc.regs().orig_rax), SYS_EXECVE);
+      assert.deepEqual(host.freshExecMarks({ registers: proc.regs() }), host.freshExecExpected);
 
     });
 
@@ -139,8 +141,8 @@ describe("spawn", () => {
       const proc = await stopped({ path: "/bin/sleep", args: ["5"] });
       const registers = proc.regs();
 
-      assert.equal(Object.keys(registers).length, 27);
-      assert.notEqual(Number(registers.rip), 0);
+      assert.equal(Object.keys(registers).length, host.count);
+      assert.notEqual(Number(registers[host.programCounter]), 0);
 
     });
   });
@@ -149,18 +151,18 @@ describe("spawn", () => {
 
     it("writes the registers through to the tracee", async () => {
       const proc = await stopped({ path: "/bin/sleep", args: ["5"] });
-      proc.setRegs({ registers: { r15: 0xdead } });
+      proc.setRegs({ registers: { [host.scratch]: 0xdead } });
 
-      assert.equal(Number(proc.regs().r15), 0xdead);
+      assert.equal(Number(proc.regs()[host.scratch]), 0xdead);
 
     });
 
     it("leaves the registers it was not given alone", async () => {
       const proc = await stopped({ path: "/bin/sleep", args: ["5"] });
       const before = proc.regs();
-      const after = proc.setRegs({ registers: { r15: 0xdead } });
+      const after = proc.setRegs({ registers: { [host.scratch]: 0xdead } });
 
-      assert.equal(Number(after.rip), Number(before.rip));
+      assert.equal(Number(after[host.programCounter]), Number(before[host.programCounter]));
 
     });
 
@@ -187,7 +189,7 @@ describe("spawn", () => {
 
     it("reads the memory of the tracee", async () => {
       const proc = await stopped({ path: "/bin/sleep", args: ["5"] });
-      const instructions = proc.peek({ offset: Number(proc.regs().rip), size: 4 });
+      const instructions = proc.peek({ offset: Number(proc.regs()[host.programCounter]), size: 4 });
 
       assert.equal(instructions.length, 4);
 
@@ -195,7 +197,7 @@ describe("spawn", () => {
 
     it("writes the memory of the tracee", async () => {
       const proc = await stopped({ path: "/bin/sleep", args: ["5"] });
-      const offset = Number(proc.regs().rsp) - 256;
+      const offset = Number(proc.regs()[host.stackPointer]) - 256;
       proc.poke({ offset, data: encoder.encode("ptrace") });
 
       assert.deepEqual(proc.peek({ offset, size: 6 }), encoder.encode("ptrace"));
@@ -239,12 +241,12 @@ describe("spawn", () => {
 
     it("advances the tracee by one instruction", async () => {
       const proc = await stopped({ path: "/bin/true" });
-      const before = Number(proc.regs().rip);
+      const before = Number(proc.regs()[host.programCounter]);
 
       proc.singlestep();
       await proc.wait();
 
-      assert.notEqual(Number(proc.regs().rip), before);
+      assert.notEqual(Number(proc.regs()[host.programCounter]), before);
 
     });
   });

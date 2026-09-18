@@ -8,7 +8,11 @@ TBD
 For examples, have a look at the examples folder.
 
 ## Supported architectures
-Currently, only Linux on x86_64 is supported. The CPU register layout is architecture specific and therefore has to be implemented for the other architectures as well.
+Linux on x86_64 and on arm64. What differs per architecture is the register layout, the syscall calling convention, the syscall numbers and the machine code of the trampoline; everything else is shared. Adding an architecture means adding one module under `lib/arch/` and listing it in `lib/arch/index.ts`.
+
+Registers are exchanged with `PTRACE_GETREGSET`/`PTRACE_SETREGSET` rather than `PTRACE_GETREGS`, which is an x86 legacy that arm64 never had.
+
+Both architectures are exercised by CI on real hardware. Register names are the one thing a spec cannot write portably, so the specs take them from `lib/arch/host.fixture.ts` rather than naming `rip` or `pc` themselves.
 
 ## Requirements
 node.js >= 20.19.0. The FFI bindings are provided by [koffi](https://koffi.dev), which ships prebuilt binaries, so no compiler or node-gyp toolchain is needed to install this package.
@@ -18,7 +22,7 @@ node.js cannot be `fork()`ed. The child segfaults inside V8's generated code bef
 
 The way out is for the child never to return into the runtime at all. `spawn()` therefore:
 
-1. allocates three mappings the child will inherit copy-on-write -- the `execve` argument block, a stack, and one page holding a `syscall` instruction;
+1. allocates three mappings the child will inherit copy-on-write -- the `execve` argument block, a stack, and one page holding the architecture's syscall instruction;
 2. calls `clone()` with libc's `pause()` as the child entry point, so the child enters a blocking syscall directly and never re-enters V8;
 3. attaches with `PTRACE_ATTACH` and redirects the stopped child at the trampoline page to inject `fcntl(fd, F_SETFD, 0)` for stdin, stdout and stderr (node marks its own stdio `FD_CLOEXEC`, which would otherwise leave the target without descriptors 0, 1 and 2);
 4. points the same trampoline at `execve` and continues.

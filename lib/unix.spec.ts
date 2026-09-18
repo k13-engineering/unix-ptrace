@@ -19,7 +19,8 @@ import {
   cloneIntoFunction
 } from "./unix.ts";
 
-import { architecture } from "./arch/x86_64.ts";
+import { create } from "./arch/index.ts";
+import { hostRegisters } from "./arch/host.fixture.ts";
 
 import type { TWaitOptions } from "./unix.ts";
 
@@ -53,6 +54,9 @@ const withContinued: TWaitOptions = {
   reportUntracedStops: false,
   reportContinued: true
 };
+
+const arch = create();
+const host = hostRegisters();
 
 const PAGE_SIZE = 4096;
 const NO_SUCH_PID = 0x7ffffff0;
@@ -221,16 +225,16 @@ describe("unix", () => {
   describe("allocateExecutable", () => {
 
     it("places the code at the address it reports", () => {
-      const page = allocateExecutable({ code: architecture.syscallTrampoline });
-      const placed = new Uint8Array(koffi.view(page.address, architecture.syscallTrampoline.length));
+      const page = allocateExecutable({ code: arch.syscallTrampoline });
+      const placed = new Uint8Array(koffi.view(page.address, arch.syscallTrampoline.length));
 
-      assert.deepEqual(placed, architecture.syscallTrampoline);
+      assert.deepEqual(placed, arch.syscallTrampoline);
 
       page.free();
     });
 
     it("leaves the page executable but never writable", () => {
-      const page = allocateExecutable({ code: architecture.syscallTrampoline });
+      const page = allocateExecutable({ code: arch.syscallTrampoline });
 
       assert.equal(mappingFor({ address: page.address })?.permissions, "r-xp");
 
@@ -238,7 +242,7 @@ describe("unix", () => {
     });
 
     it("gives the memory back when freed", () => {
-      const page = allocateExecutable({ code: architecture.syscallTrampoline });
+      const page = allocateExecutable({ code: arch.syscallTrampoline });
       const { address } = page;
       page.free();
 
@@ -356,31 +360,31 @@ describe("unix", () => {
     };
 
     it("reads the register set of a stopped tracee", () => {
-      const access = registerAccessFor({ type: architecture.Registers });
+      const access = registerAccessFor({ type: arch.Registers });
       const pid = attachedChild();
 
       const registers = access.read({ pid });
 
-      assert.equal(Object.keys(registers).length, 27);
-      assert.notEqual(Number(registers.rip), 0);
+      assert.equal(Object.keys(registers).length, host.count);
+      assert.notEqual(Number(registers[host.programCounter]), 0);
 
       reap({ pid });
     });
 
     it("writes a register set back to the tracee", () => {
-      const access = registerAccessFor({ type: architecture.Registers });
+      const access = registerAccessFor({ type: arch.Registers });
       const pid = attachedChild();
 
       const registers = access.read({ pid });
-      access.write({ pid, registers: { ...registers, r15: 0xfeed } });
+      access.write({ pid, registers: { ...registers, [host.scratch]: 0xfeed } });
 
-      assert.equal(Number(access.read({ pid }).r15), 0xfeed);
+      assert.equal(Number(access.read({ pid })[host.scratch]), 0xfeed);
 
       reap({ pid });
     });
 
     it("reports a read from a process that is not traced", () => {
-      const access = registerAccessFor({ type: architecture.Registers });
+      const access = registerAccessFor({ type: arch.Registers });
 
       assert.throws(() => {
         access.read({ pid: NO_SUCH_PID });
@@ -388,7 +392,7 @@ describe("unix", () => {
     });
 
     it("reports a write to a process that is not traced", () => {
-      const access = registerAccessFor({ type: architecture.Registers });
+      const access = registerAccessFor({ type: arch.Registers });
 
       assert.throws(() => {
         access.write({ pid: NO_SUCH_PID, registers: {} });
