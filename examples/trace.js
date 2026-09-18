@@ -8,7 +8,7 @@ const spawnAndLog = async (...args) => {
   let state = "leave";
   let status = await proc.wait();
 
-  while (!status.exited()) {
+  while (!status.exited() && !status.signaled()) {
     const r = await proc.regs();
     if (state === "enter") {
       process.stdout.write(`\rsyscall ${r.orig_rax}\r`);
