@@ -69,11 +69,17 @@ const PAGE_SIZE = 4096;
 
 type TWaitStatus = {
   code: number;
+  changed: () => boolean;
   exited: () => boolean;
   signaled: () => boolean;
   stopped: () => boolean;
   continued: () => boolean;
   toString: () => string;
+};
+
+type TReportedStatus = {
+  code: number;
+  changed: boolean;
 };
 
 type TAllocation = {
@@ -98,25 +104,35 @@ type TRegisterAccess = {
 };
 
 // wait(2) status decoding, mirroring the WIFEXITED, WIFSIGNALED, WIFSTOPPED
-// and WIFCONTINUED macros
-const decodeStatus = (code: number): TWaitStatus => {
+// and WIFCONTINUED macros. A wait that was told not to block can return
+// without a status at all, and then none of them hold: a status word of zero
+// on its own would otherwise be indistinguishable from a clean exit.
+const decodeStatus = ({ code, changed }: { code: number; changed: boolean }): TWaitStatus => {
   const exited = () => {
-    return (code & 0x7f) === 0;
+    return changed && (code & 0x7f) === 0;
   };
 
   const stopped = () => {
-    return (code & 0xff) === 0x7f;
+    return changed && (code & 0xff) === 0x7f;
   };
 
   const continued = () => {
-    return code === 0xffff;
+    return changed && code === 0xffff;
   };
 
   const signaled = () => {
-    return !exited() && !stopped() && !continued();
+    return changed && !exited() && !stopped() && !continued();
   };
 
-  const predicates = { exited, signaled, stopped, continued };
+  const predicates = {
+    unchanged: () => {
+      return !changed;
+    },
+    exited,
+    signaled,
+    stopped,
+    continued
+  };
 
   const toString = () => {
     const active = Object.entries(predicates).filter(([, test]) => {
@@ -130,6 +146,9 @@ const decodeStatus = (code: number): TWaitStatus => {
 
   return {
     code,
+    changed: () => {
+      return changed;
+    },
     exited,
     signaled,
     stopped,
@@ -154,17 +173,18 @@ const waitFailure = ({ error, result }: { error: unknown; result: number }): Err
 // those waits are synchronous; only the caller-facing wait is deferred.
 const waitpidSync = ({ pid, options }: { pid: number; options: number }): TWaitStatus => {
   const status = [0];
-  const failure = waitFailure({ error: null, result: waitpidRaw(pid, status, options) });
+  const result = waitpidRaw(pid, status, options);
+  const failure = waitFailure({ error: null, result });
 
   if (failure !== undefined) {
     throw failure;
   }
 
-  return decodeStatus(status[0] ?? 0);
+  return decodeStatus({ code: status[0] ?? 0, changed: result !== 0 });
 };
 
 const waitpid = async ({ pid, options }: { pid: number; options: number }): Promise<TWaitStatus> => {
-  const code = await new Promise<number>((resolve, reject) => {
+  const reported = await new Promise<TReportedStatus>((resolve, reject) => {
     const status = [0];
 
     waitpidRaw.async(pid, status, options, (...outcome: [unknown, number]) => {
@@ -175,11 +195,11 @@ const waitpid = async ({ pid, options }: { pid: number; options: number }): Prom
         return;
       }
 
-      resolve(status[0] ?? 0);
+      resolve({ code: status[0] ?? 0, changed: outcome[1] !== 0 });
     });
   });
 
-  return decodeStatus(code);
+  return decodeStatus(reported);
 };
 
 const ptrace = ({ request, pid, addr, data }: {
