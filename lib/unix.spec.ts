@@ -261,7 +261,7 @@ describe("unix", () => {
 
       const status = waitpidSync({ pid, options: 0 });
 
-      assert.equal(status.exited(), true);
+      assert.equal(status.type, "exited");
       stack.free();
     });
 
@@ -299,7 +299,7 @@ describe("unix", () => {
       const pid = startParkedChild();
       kill({ pid, signal: SIGKILL });
 
-      assert.equal(waitpidSync({ pid, options: 0 }).signaled(), true);
+      assert.deepEqual(waitpidSync({ pid, options: 0 }), { type: "signaled", signal: SIGKILL, dumpedCore: false });
     });
 
     it("reports a process that does not exist", () => {
@@ -315,7 +315,7 @@ describe("unix", () => {
       const pid = startParkedChild();
       ptrace({ request: PTRACE_ATTACH, pid });
 
-      assert.equal(waitpidSync({ pid, options: 0 }).stopped(), true);
+      assert.deepEqual(waitpidSync({ pid, options: 0 }), { type: "stopped", signal: SIGSTOP });
 
       reap({ pid });
     });
@@ -395,8 +395,7 @@ describe("unix", () => {
 
       const status = waitpidSync({ pid, options: 0 });
 
-      assert.equal(status.exited(), true);
-      assert.equal(status.code >> 8 & 0xff, 0);
+      assert.deepEqual(status, { type: "exited", code: 0 });
     });
 
     it("reports a child that was killed by a signal", () => {
@@ -405,15 +404,14 @@ describe("unix", () => {
 
       const status = waitpidSync({ pid, options: 0 });
 
-      assert.equal(status.signaled(), true);
-      assert.equal(status.exited(), false);
+      assert.deepEqual(status, { type: "signaled", signal: SIGKILL, dumpedCore: false });
     });
 
     it("reports a child that was stopped", () => {
       const pid = startParkedChild();
       kill({ pid, signal: SIGSTOP });
 
-      assert.equal(waitpidSync({ pid, options: WUNTRACED }).stopped(), true);
+      assert.deepEqual(waitpidSync({ pid, options: WUNTRACED }), { type: "stopped", signal: SIGSTOP });
 
       kill({ pid, signal: SIGCONT });
       reap({ pid });
@@ -425,7 +423,7 @@ describe("unix", () => {
       waitpidSync({ pid, options: WUNTRACED });
       kill({ pid, signal: SIGCONT });
 
-      assert.equal(waitpidSync({ pid, options: WCONTINUED }).continued(), true);
+      assert.deepEqual(waitpidSync({ pid, options: WCONTINUED }), { type: "continued" });
 
       reap({ pid });
     });
@@ -443,7 +441,7 @@ describe("unix", () => {
       const pid = startParkedChild();
       ptrace({ request: PTRACE_ATTACH, pid });
 
-      assert.equal((await waitpid({ pid, options: 0 })).stopped(), true);
+      assert.deepEqual(await waitpid({ pid, options: 0 }), { type: "stopped", signal: SIGSTOP });
 
       reap({ pid });
     });
@@ -461,16 +459,7 @@ describe("unix", () => {
       const pid = startParkedChild();
       const status = waitpidSync({ pid, options: WNOHANG });
 
-      assert.equal(status.changed(), false);
-      assert.equal(status.exited(), false);
-
-      reap({ pid });
-    });
-
-    it("says so when asked to describe itself", () => {
-      const pid = startParkedChild();
-
-      assert.equal(waitpidSync({ pid, options: WNOHANG }).toString(), "status [unchanged]");
+      assert.deepEqual(status, { type: "unchanged" });
 
       reap({ pid });
     });
@@ -480,18 +469,7 @@ describe("unix", () => {
       kill({ pid, signal: SIGKILL });
       const status = waitpidSync({ pid, options: 0 });
 
-      assert.equal(status.changed(), true);
-      assert.equal(status.signaled(), true);
-    });
-  });
-
-  describe("wait status", () => {
-
-    it("names the states it is in", () => {
-      const pid = startParkedChild();
-      kill({ pid, signal: SIGKILL });
-
-      assert.equal(waitpidSync({ pid, options: 0 }).toString(), "status [signaled]");
+      assert.equal(status.type, "signaled");
     });
   });
 });

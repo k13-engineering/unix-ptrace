@@ -21,7 +21,7 @@ const traceSyscalls = async ({ path, args }: { path: string; args: readonly stri
   const loop = async ({ entering }: { entering: boolean }): Promise<boolean> => {
     const status = await proc.wait();
 
-    if (status.exited() || status.signaled()) {
+    if (status.type === "exited" || status.type === "signaled") {
       return entering;
     }
 

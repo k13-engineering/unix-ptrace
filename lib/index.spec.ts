@@ -11,7 +11,6 @@ import type { TTracedProcess, TWaitStatus } from "./index.ts";
 const SYS_EXECVE = 59;
 const SIGKILL = 9;
 const WNOHANG = 1;
-
 const encoder = new TextEncoder();
 
 const running = new Set<TTracedProcess>();
@@ -48,7 +47,7 @@ const runToExit = async ({ proc }: { proc: TTracedProcess }): Promise<TWaitStatu
   const loop = async (): Promise<TWaitStatus> => {
     const status = await proc.wait();
 
-    if (status.exited() || status.signaled()) {
+    if (status.type === "exited" || status.type === "signaled") {
       return status;
     }
 
@@ -93,7 +92,7 @@ describe("spawn", () => {
       running.add(proc);
       const status = await proc.wait();
 
-      assert.equal(status.stopped(), true);
+      assert.equal(status.type, "stopped");
       assert.equal(Number(proc.regs().orig_rax), SYS_EXECVE);
 
     });
@@ -102,7 +101,7 @@ describe("spawn", () => {
       const proc = await stopped({ path: "/bin/sleep", args: ["5"] });
       proc.cont();
 
-      assert.equal((await proc.wait({ options: WNOHANG })).exited(), false);
+      assert.deepEqual(await proc.wait({ options: WNOHANG }), { type: "unchanged" });
 
     });
 
@@ -116,7 +115,7 @@ describe("spawn", () => {
       const proc = spawn({ path: "/bin/sleep", args: ["5"] });
       running.add(proc);
 
-      assert.equal((await proc.wait()).stopped(), true);
+      assert.equal((await proc.wait()).type, "stopped");
 
       forget({ pid: earlier.pid });
     });
@@ -198,7 +197,7 @@ describe("spawn", () => {
       const proc = await stopped({ path: "/bin/true" });
       proc.cont();
 
-      assert.equal((await runToExit({ proc })).exited(), true);
+      assert.deepEqual(await runToExit({ proc }), { type: "exited", code: 0 });
     });
   });
 
@@ -210,7 +209,7 @@ describe("spawn", () => {
       const loop = async ({ stops }: { stops: number }): Promise<number> => {
         const status = await proc.wait();
 
-        if (status.exited() || status.signaled()) {
+        if (status.type === "exited" || status.type === "signaled") {
           return stops;
         }
 

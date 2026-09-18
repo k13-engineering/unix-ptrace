@@ -143,8 +143,7 @@ describe("tracee", () => {
       const path = writeTempFile({ name: "bad-format", contents: "\x7fELF nonsense\n", mode: 0o755 });
       const status = waitpidSync({ pid: startTracee({ path }), options: 0 });
 
-      assert.equal(status.exited(), true);
-      assert.equal(status.code >> 8 & 0xff, ENOEXEC);
+      assert.deepEqual(status, { type: "exited", code: ENOEXEC });
     });
 
     it("reports a tracee whose stdio it cannot share", () => {

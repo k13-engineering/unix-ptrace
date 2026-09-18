@@ -67,14 +67,23 @@ const MAP_STACK = 0x20000;
 const MAP_FAILED = 0xffffffffffffffffn;
 const PAGE_SIZE = 4096;
 
+// wait(2) reports exactly one kind of state change at a time, so a status is
+// one of a handful of shapes rather than a bag of independent flags. Each
+// carries only what its own kind cannot be derived from.
 type TWaitStatus = {
+  type: "unchanged";
+} | {
+  type: "exited";
   code: number;
-  changed: () => boolean;
-  exited: () => boolean;
-  signaled: () => boolean;
-  stopped: () => boolean;
-  continued: () => boolean;
-  toString: () => string;
+} | {
+  type: "signaled";
+  signal: number;
+  dumpedCore: boolean;
+} | {
+  type: "stopped";
+  signal: number;
+} | {
+  type: "continued";
 };
 
 type TReportedStatus = {
@@ -103,58 +112,33 @@ type TRegisterAccess = {
   write: (params: { request: number; pid: number; registers: TRegisters }) => void;
 };
 
-// wait(2) status decoding, mirroring the WIFEXITED, WIFSIGNALED, WIFSTOPPED
-// and WIFCONTINUED macros. A wait that was told not to block can return
-// without a status at all, and then none of them hold: a status word of zero
-// on its own would otherwise be indistinguishable from a clean exit.
-const decodeStatus = ({ code, changed }: { code: number; changed: boolean }): TWaitStatus => {
-  const exited = () => {
-    return changed && (code & 0x7f) === 0;
-  };
+// Decoding mirrors the WIFEXITED, WIFSIGNALED, WIFSTOPPED and WIFCONTINUED
+// macros. The order matters: a continued child is neither exited nor stopped,
+// and everything left over is a child killed by a signal.
+const decodeChange = ({ code }: { code: number }): TWaitStatus => {
+  if ((code & 0x7f) === 0) {
+    return { type: "exited", code: code >> 8 & 0xff };
+  }
 
-  const stopped = () => {
-    return changed && (code & 0xff) === 0x7f;
-  };
+  if ((code & 0xff) === 0x7f) {
+    return { type: "stopped", signal: code >> 8 & 0xff };
+  }
 
-  const continued = () => {
-    return changed && code === 0xffff;
-  };
+  if (code === 0xffff) {
+    return { type: "continued" };
+  }
 
-  const signaled = () => {
-    return changed && !exited() && !stopped() && !continued();
-  };
+  return { type: "signaled", signal: code & 0x7f, dumpedCore: (code & 0x80) !== 0 };
+};
 
-  const predicates = {
-    unchanged: () => {
-      return !changed;
-    },
-    exited,
-    signaled,
-    stopped,
-    continued
-  };
+// A wait that was told not to block can return without a status at all, and a
+// status word of zero on its own would be indistinguishable from a clean exit.
+const decodeStatus = ({ code, changed }: TReportedStatus): TWaitStatus => {
+  if (!changed) {
+    return { type: "unchanged" };
+  }
 
-  const toString = () => {
-    const active = Object.entries(predicates).filter(([, test]) => {
-      return test();
-    }).map(([name]) => {
-      return `[${name}]`;
-    });
-
-    return ["status", ...active].join(" ");
-  };
-
-  return {
-    code,
-    changed: () => {
-      return changed;
-    },
-    exited,
-    signaled,
-    stopped,
-    continued,
-    toString
-  };
+  return decodeChange({ code });
 };
 
 const waitFailure = ({ error, result }: { error: unknown; result: number }): Error | undefined => {
